@@ -14,7 +14,6 @@ repositories {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
-    implementation("org.jetbrains.kotlinx:atomicfu:0.18.5")
     testImplementation(kotlin("test"))
 }
 

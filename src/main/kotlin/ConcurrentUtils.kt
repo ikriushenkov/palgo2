@@ -1,7 +1,7 @@
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-const val BLOCK = 100
+const val BLOCK = 50
 
 suspend inline fun parallelFor(l: Int, r: Int, crossinline action: suspend (Int) -> Unit) {
     if (r - l <= BLOCK) {
@@ -12,9 +12,10 @@ suspend inline fun parallelFor(l: Int, r: Int, crossinline action: suspend (Int)
     }
 
     coroutineScope {
-        for (j in l until r step BLOCK) {
+        val block = (r - l) / 4 + 1
+        for (j in l until r step block) {
             launch {
-                for (i in j until minOf(r, j + BLOCK)) {
+                for (i in j until minOf(r, j + block)) {
                     action(i)
                 }
             }
@@ -25,7 +26,11 @@ suspend inline fun parallelFor(l: Int, r: Int, crossinline action: suspend (Int)
 suspend fun IntArray.parallelScan(): IntArray {
     val n = size
     if (size <= BLOCK) {
-        return scan(0, Int::plus).toIntArray()
+        val result = IntArray(size + 1)
+        for (i in 1..size) {
+            result[i] += result[i - 1] + this[i - 1]
+        }
+        return result
     }
 
     val blocks = n divideRoundUp BLOCK
@@ -44,17 +49,15 @@ suspend fun IntArray.parallelScan(): IntArray {
 
     val s = IntArray(n + 1)
 
-    parallelFor(0, size) { i ->
-        val prev = if (i % BLOCK == 0) {
-            if (i == 0) {
-                0
-            } else {
-                sums[i / BLOCK]
-            }
-        } else {
-            s[i]
+    parallelFor(0, sums.size) { i ->
+        if (i * BLOCK > size) {
+            return@parallelFor
         }
-        s[i + 1] = prev + this[i]
+        val sum = sums[i]
+        s[i * BLOCK] = sum
+        for (j in BLOCK * i + 1 until minOf(s.size, BLOCK * (i + 1))) {
+            s[j] += s[j - 1] + this[j - 1]
+        }
     }
 
     return s
@@ -64,10 +67,14 @@ suspend inline fun IntArray.parallelMap(
     l: Int = 0,
     r: Int = size,
     crossinline transform: (Int) -> Int,
-) {
+): IntArray {
+    val destination = IntArray(r - l)
+
     parallelFor(l, r) { i ->
-        this[i] = transform(this[i])
+        destination[i] = transform(this[i])
     }
+
+    return destination
 }
 
 suspend inline fun IntArray.parallelFilter(
@@ -75,8 +82,8 @@ suspend inline fun IntArray.parallelFilter(
     r: Int = size,
     crossinline predicate: (Int) -> Boolean,
 ): IntArray {
-    val flags = copyOf().apply { parallelMap(l, r) { if (predicate(it)) 1 else 0 } }
-    val sums = flags.scan(0, Int::plus).toIntArray()
+    val flags = parallelMap(l, r) { if (predicate(it)) 1 else 0 }
+    val sums = flags.parallelScan()
     val destination = IntArray(sums.last())
 
     parallelFor(l, r) { i ->

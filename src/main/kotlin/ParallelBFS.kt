@@ -1,13 +1,24 @@
-import kotlinx.atomicfu.AtomicBooleanArray
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicIntegerArray
 
-suspend fun parallelBfs1(g: Graph, start: Int = 0): IntArray {
+@OptIn(ExperimentalCoroutinesApi::class)
+fun parallelBfs(g: Graph, start: Int = 0): IntArray = runBlocking {
+    withContext(Dispatchers.IO.limitedParallelism(4)) {
+        suspendParallelBfs(g, start)
+    }
+}
+
+suspend fun suspendParallelBfs(g: Graph, start: Int = 0): IntArray {
     val n = g.size
-    val used = AtomicBooleanArray(n)
+    val used = AtomicIntegerArray(n)
     var f = intArrayOf(start)
     var dist = 1
     val result = IntArray(g.size) { Int.MAX_VALUE }
     result[start] = 0
-    used[start].value = true
+    used[start] = 1
 
     while (f.isNotEmpty()) {
         var deg = IntArray(f.size)
@@ -16,16 +27,16 @@ suspend fun parallelBfs1(g: Graph, start: Int = 0): IntArray {
             deg[i] = g[f[i]].size
         }
 
-        deg = deg.scan(0, Int::plus).toIntArray()
+        deg = deg.parallelScan()
 
         val fSize = deg.last()
         val nextF = IntArray(fSize) { -1 }
 
-        parallelFor(0, f.size) { i ->
+        parallelFor(0, deg.size - 1) { i ->
             val v = f[i]
-            var cur = if (i == 0) 0 else deg[i - 1]
+            var cur = deg[i]
             for (u in g[v]) {
-                if (used[u].compareAndSet(expect = false, update = true)) {
+                if (used.compareAndSet(u, 0, 1)) {
                     nextF[cur++] = u
                     result[u] = dist
                 }
