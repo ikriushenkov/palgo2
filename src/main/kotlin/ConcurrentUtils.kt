@@ -1,7 +1,7 @@
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-const val BLOCK = 50
+const val BLOCK = 100
 
 suspend inline fun parallelFor(l: Int, r: Int, crossinline action: suspend (Int) -> Unit) {
     if (r - l <= BLOCK) {

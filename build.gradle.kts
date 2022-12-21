@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "1.7.20"
+    id("me.champeau.jmh") version "0.6.8"
     application
 }
 
@@ -28,7 +29,13 @@ tasks.withType<KotlinCompile> {
 application {
     mainClass.set("MainKt")
 }
+
 val compileKotlin: KotlinCompile by tasks
+
 compileKotlin.kotlinOptions {
-    languageVersion = "1.8"
+    languageVersion = "1.7"
+}
+
+jmh {
+    jvmArgsAppend.addAll("-XX:+UseZGC", "-Xms32G", "-Xmx32G")
 }
